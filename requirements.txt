@@ -10,3 +10,4 @@ PyYAML==6.0
 requests==2.32.3
 streamlit==1.37.0
 googletrans~=4.0.0rc1
+google-ai-generativelanguage==0.6.10
