@@ -2,6 +2,7 @@ import pytesseract
 from PIL import Image, ImageEnhance, ImageFilter
 import streamlit as st
 from googletrans import Translator
+import asyncio
 
 # Set the path to the tesseract executable
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -83,26 +84,25 @@ ocr_languages = {
 }
 
 # Full list of languages supported by Google Translate API (for translation)
-language_list = [
-    'Afrikaans', 'Albanian', 'Amharic', 'Arabic', 'Armenian', 'Bengali', 'Bosnian', 'Catalan',
-    'Croatian', 'Czech', 'Danish', 'Dutch', 'English', 'Esperanto', 'Estonian', 'Filipino', 'Finnish',
-    'French', 'Georgian', 'German', 'Greek', 'Gujarati', 'Haitian Creole', 'Hebrew', 'Hindi', 'Hungarian', 'Icelandic',
-    'Indonesian', 'Italian', 'Japanese', 'Javanese', 'Kannada', 'Kazakh', 'Khmer', 'Korean', 'Kurdish', 'Latvian',
-    'Lithuanian', 'Malay', 'Malayalam', 'Marathi', 'Mongolian', 'Nepali', 'Norwegian', 'Persian', 'Polish',
-    'Portuguese',
-    'Punjabi', 'Romanian', 'Russian', 'Serbian', 'Sinhalese', 'Slovak', 'Slovenian', 'Spanish', 'Swahili', 'Swedish',
-    'Tamil', 'Telugu', 'Thai', 'Turkish', 'Ukrainian', 'Vietnamese', 'Welsh', 'Yiddish', 'Zulu'
-]
+language_list = list(ocr_languages.keys())
 
 
 # Function to preprocess image for better OCR results
 def preprocess_image(image):
     """Preprocess the image to improve text extraction."""
+    # Convert image to grayscale
     gray_image = image.convert("L")
+
+    # Apply adaptive thresholding for better contrast
     threshold_image = gray_image.point(lambda p: p > 200 and 255)
+
+    # Enhance contrast
     enhancer = ImageEnhance.Contrast(threshold_image)
     enhanced_image = enhancer.enhance(2)
+
+    # Apply median filter for denoising
     filtered_image = enhanced_image.filter(ImageFilter.MedianFilter(3))
+
     return filtered_image
 
 
@@ -114,10 +114,10 @@ def extract_text_from_image(image, lang='eng'):
     return text
 
 
-# Function to translate the extracted text into the selected language
-def translate_text(text, target_language):
-    """Translate the extracted text into the selected language."""
-    translated = translator.translate(text, dest=target_language)
+# Function to translate the extracted text into the selected language (async)
+async def translate_text_async(text, target_language):
+    """Translate the extracted text into the selected language asynchronously."""
+    translated = await translator.translate(text, dest=target_language)
     return translated.text
 
 
@@ -142,7 +142,7 @@ def main():
     # Step 1: Language selection for the image (language of the text in the image)
     upload_lang = st.selectbox(
         "Select the language of the text in the image",
-        list(ocr_languages.keys()),
+        language_list,
         index=0
     )
     # Get the corresponding Tesseract language code
@@ -182,7 +182,8 @@ def main():
         if st.button("Convert"):
             # Translate the extracted text into the selected language
             if st.session_state.extracted_text:
-                translated_text = translate_text(st.session_state.extracted_text, selected_language.lower())
+                translated_text = asyncio.run(
+                    translate_text_async(st.session_state.extracted_text, selected_language.lower()))
                 st.session_state.translations.append((selected_language, translated_text))
 
         # Display all previous translations
